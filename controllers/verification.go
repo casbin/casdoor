@@ -148,3 +148,4 @@ func (c *ApiController) ResetEmailOrPhone() {
 	c.Data["json"] = Response{Status: "ok"}
 	c.ServeJSON()
 }
+
