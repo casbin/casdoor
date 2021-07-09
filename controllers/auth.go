@@ -58,6 +58,13 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 	} else {
 		resp = &Response{Status: "error", Msg: fmt.Sprintf("Unknown response type: %s", form.Type)}
 	}
+
+	// if user did not choose auto login
+	if resp.Status == "ok" && !form.AutoSignin {
+		user.SigninExpireTime = util.GetTomorrowTime()
+		object.UpdateUserInternal(userId, user)
+	}
+
 	return resp
 }
 
