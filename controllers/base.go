@@ -14,7 +14,13 @@
 
 package controllers
 
-import "github.com/astaxie/beego"
+import (
+	"strings"
+
+	"github.com/astaxie/beego"
+	"github.com/casdoor/casdoor/object"
+	"github.com/casdoor/casdoor/util"
+)
 
 type ApiController struct {
 	beego.Controller
@@ -23,6 +29,24 @@ type ApiController struct {
 func (c *ApiController) GetSessionUser() string {
 	user := c.GetSession("username")
 	if user == nil {
+		return ""
+	}
+
+	userId, _ := user.(string)
+	if strings.Index(userId, "/") < 0 {
+		return ""
+	}
+
+	userObj := object.GetUser(userId)
+	if userObj == nil {
+		return ""
+	}
+
+	// if user login expired, then clean the session and return an empty string
+	if userObj.SigninExpireTime != "" && util.IsTimeExpired(userObj.SigninExpireTime) {
+		userObj.SigninExpireTime = ""
+		object.UpdateUserInternal(userId, userObj)
+		c.SetSessionUser("")
 		return ""
 	}
 
