@@ -6,6 +6,7 @@ func InitDb() {
 	initBuiltInOrganization()
 	initBuiltInUser()
 	initBuiltInApplication()
+	initBuiltInLdap()
 }
 
 func initBuiltInOrganization() {
@@ -73,4 +74,25 @@ func initBuiltInApplication() {
 		ExpireInHours:  168,
 	}
 	AddApplication(application)
+}
+
+func initBuiltInLdap() {
+	ldap := GetLdap("ldap-built-in")
+	if ldap != nil {
+		return
+	}
+
+	ldap = &Ldap{
+		Id:         "ldap-built-in",
+		Owner:      "built-in",
+		ServerName: "BuildIn LDAP Server",
+		Host:       "example.com",
+		Port:       389,
+		Admin:      "cn=buildin,dc=example,dc=com",
+		Passwd:     "123",
+		BaseDn:     "ou=BuildIn,dc=example,dc=com",
+		AutoSync:   0,
+		LastSync:   "",
+	}
+	AddLdap(ldap)
 }
