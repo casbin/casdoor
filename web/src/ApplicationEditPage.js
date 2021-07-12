@@ -240,6 +240,25 @@ class ApplicationEditPage extends React.Component {
             }} />
           </Col>
         </Row>
+        <Row style={{marginTop: '20px'}} align="middle">
+          <Col style={{marginTop: '5px'}} span={2}>
+            {Setting.getLabel(i18next.t("application:Enable 2FA"), i18next.t("application:Enable 2FA - Tooltip"))} :
+          </Col>
+          <Col span={1} >
+            <Switch checked={this.state.application.enable2FA} onChange={checked => {
+              this.updateApplicationField('enable2FA', checked);
+            }}/>
+          </Col>
+          <Col span={2} >
+            {
+              !this.state.application.enable2FA ? <div style={{height: '32px'}}> </div> :
+                <Select virtual={false} style={{width: '100%'}} value={this.state.application.wayOf2FA} onChange={(value => {this.updateApplicationField('wayOf2FA', value);})}>
+                  <Option value={"Email"}>Email</Option>
+                  <Option value={"Phone"}>Phone</Option>
+                </Select>
+            }
+          </Col>
+        </Row>
         <Row style={{marginTop: '20px'}} >
           <Col style={{marginTop: '5px'}} span={2}>
             {Setting.getLabel(i18next.t("general:Signup URL"), i18next.t("general:Signup URL - Tooltip"))} :

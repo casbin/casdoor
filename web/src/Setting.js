@@ -436,6 +436,13 @@ function maskString(s) {
   }
 }
 
+// remove prefix(optional) and mask
+export function maskPhone(p) {
+  if (p === "") return;
+  if (p.indexOf("/") !== -1) p = p.split("/")[1];
+  return `${p.substring(0, 3)}${repeat("*", 7)}${p[p.length - 1]}`;
+}
+
 export function maskEmail(email) {
   if (email === "") return;
   const tokens = email.split("@");

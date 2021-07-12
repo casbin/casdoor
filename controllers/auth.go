@@ -38,6 +38,20 @@ func (c *ApiController) HandleLoggedIn(application *object.Application, user *ob
 	userId := user.GetId()
 	resp := &Response{}
 	if form.Type == ResponseTypeLogin {
+		if application.Enable2FA {
+			util.LogInfo(c.Ctx, "API: [%s] need to verify email/phone", userId)
+			addr := ""
+			if application.WayOf2FA == "Email" {
+				addr = user.Email
+			} else if application.WayOf2FA == "Phone" {
+				addr = user.Phone
+			} else {
+				resp = &Response{Status: "error", Msg: fmt.Sprint("Unknown 2FA Way"), Data: application.WayOf2FA}
+				return resp
+			}
+			resp = &Response{Status: "error", Msg: fmt.Sprint("need to verify email/phone"), Data: userId, Data2: addr}
+			return resp
+		}
 		c.SetSessionUser(userId)
 		util.LogInfo(c.Ctx, "API: [%s] signed in", userId)
 		resp = &Response{Status: "ok", Msg: "", Data: userId}
@@ -106,7 +120,68 @@ func (c *ApiController) Login() {
 		return
 	}
 
-	if form.Username != "" {
+	if form.WayOf2FA != "" {
+		var user *object.User
+		var verificationCodeType string
+		var prefix, suffix string // +86,152*******6
+
+		// check result through Email or Phone or others(E.g. Google Authenticator)
+		if form.Email != "" {
+			verificationCodeType = "email"
+			checkResult := object.CheckVerificationCode(form.Email, form.EmailCode)
+			if len(checkResult) != 0 {
+				responseText := fmt.Sprintf("Email%s", checkResult)
+				c.ResponseError(responseText)
+				return
+			}
+		} else if form.Phone != "" {
+			verificationCodeType = "phone"
+			prefix, suffix = strings.Split(form.Phone, "/")[0], strings.Split(form.Phone, "/")[1]
+			checkResult := object.CheckVerificationCode(fmt.Sprintf("%s%s", prefix, suffix), form.PhoneCode)
+			if len(checkResult) != 0 {
+				responseText := fmt.Sprintf("Phone%s", checkResult)
+				c.ResponseError(responseText)
+				return
+			}
+		} else {
+			c.ResponseError("Unknown 2FA Way")
+			return
+		}
+
+		// get user
+		var userId string
+		if form.Username == "" {
+			userId, _ = c.RequireSignedIn()
+		} else {
+			userId = fmt.Sprintf("%s/%s", form.Organization, form.Username)
+		}
+
+		user = object.GetUser(userId)
+		if user == nil {
+			c.ResponseError("No such user.")
+			return
+		}
+
+		// disable the verification code
+		switch verificationCodeType {
+		case "email":
+			if user.Email != form.Email {
+				c.ResponseError("wrong email!")
+			}
+			object.DisableVerificationCode(form.Email)
+			break
+		case "phone":
+			if user.Phone != suffix {
+				c.ResponseError("wrong phone!")
+			}
+			object.DisableVerificationCode(suffix)
+			break
+		}
+
+		c.SetSessionUser(userId)
+		util.LogInfo(c.Ctx, "API: [%s] signed in", userId)
+		resp = &Response{Status: "ok", Msg: "", Data: userId}
+	} else if form.Username != "" {
 		if form.Type == ResponseTypeLogin {
 			if c.GetSessionUser() != "" {
 				resp = &Response{Status: "error", Msg: "Please log out first before signing in", Data: c.GetSessionUser()}
@@ -119,67 +194,20 @@ func (c *ApiController) Login() {
 		var user *object.User
 		var msg string
 
-		if form.Password == "" {
-			var verificationCodeType string
-
-			// check result through Email or Phone
-			if strings.Contains(form.Email, "@") {
-				verificationCodeType = "email"
-				checkResult := object.CheckVerificationCode(form.Email, form.EmailCode)
-				if len(checkResult) != 0 {
-					responseText := fmt.Sprintf("Email%s", checkResult)
-					c.ResponseError(responseText)
-					return
-				}
-			} else {
-				verificationCodeType = "phone"
-				checkPhone := fmt.Sprintf("+%s%s", form.PhonePrefix, form.Email)
-				checkResult := object.CheckVerificationCode(checkPhone, form.EmailCode)
-				if len(checkResult) != 0 {
-					responseText := fmt.Sprintf("Phone%s", checkResult)
-					c.ResponseError(responseText)
-					return
-				}
-			}
-
-			// get user
-			var userId string
-			if form.Username == "" {
-				userId, _ = c.RequireSignedIn()
-			} else {
-				userId = fmt.Sprintf("%s/%s", form.Organization, form.Username)
-			}
-
-			user = object.GetUser(userId)
-			if user == nil {
-				c.ResponseError("No such user.")
-				return
-			}
-
-			// disable the verification code
-			switch verificationCodeType {
-			case "email":
-				if user.Email != form.Email {
-					c.ResponseError("wrong email!")
-				}
-				object.DisableVerificationCode(form.Email)
-				break
-			case "phone":
-				if user.Phone != form.Email {
-					c.ResponseError("wrong phone!")
-				}
-				object.DisableVerificationCode(form.Email)
-				break
-			}
-		} else {
+		if form.Password != "" {
 			password := form.Password
 			user, msg = object.CheckUserLogin(form.Organization, form.Username, password)
 		}
 
-		if msg != "" {
+		if msg != "" || user == nil {
 			resp = &Response{Status: "error", Msg: msg, Data: ""}
 		} else {
 			application := object.GetApplication(fmt.Sprintf("admin/%s", form.Application))
+
+			// patch User.Phone to prefix+real-phone, to facilitate front-end processing
+			organization := object.GetOrganization(fmt.Sprintf("%s/%s", "admin", application.Organization))
+			user.Phone = fmt.Sprintf("+%s/%s", organization.PhonePrefix, user.Phone)
+
 			resp = c.HandleLoggedIn(application, user, &form)
 
 			record := util.Records(c.Ctx)

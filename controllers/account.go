@@ -48,6 +48,7 @@ type RequestForm struct {
 	State       string `json:"state"`
 	RedirectUri string `json:"redirectUri"`
 	Method      string `json:"method"`
+	WayOf2FA    string `json:"wayOf2FA"`
 
 	EmailCode   string `json:"emailCode"`
 	PhoneCode   string `json:"phoneCode"`
